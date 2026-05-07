@@ -1,0 +1,11 @@
+{
+  "name": "Weightlifting Tracker",
+  "short_name": "Lifting",
+  "description": "Track weightlifting progress across weekly, monthly, quarterly, and yearly ranges.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#146c94",
+  "orientation": "portrait-primary"
+}
+
