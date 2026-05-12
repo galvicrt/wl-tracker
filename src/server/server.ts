@@ -24,11 +24,21 @@ const entrySchema = z.object({
 
 const rangeSchema = z.enum(["weekly", "monthly", "quarterly", "yearly"]);
 
+/** node-pg returns DATE as a JS Date; String(date).slice(0, 10) is not YYYY-MM-DD. */
+const liftedAtToIsoDate = (value: unknown): string => {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  const s = String(value ?? "");
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+  return match ? match[1] : s.slice(0, 10);
+};
+
 const mapEntry = (row: Record<string, unknown>): LiftEntry => ({
   id: String(row.id),
   exerciseId: String(row.exercise_id),
   exerciseName: String(row.exercise_name),
-  liftedAt: String(row.lifted_at).slice(0, 10),
+  liftedAt: liftedAtToIsoDate(row.lifted_at),
   weight: Number(row.weight),
   unit: row.unit === "lb" ? "lb" : "kg",
   notes: String(row.notes ?? ""),
