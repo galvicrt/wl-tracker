@@ -7,9 +7,12 @@ type Props = {
 
 const colors = ["#146c94", "#c2410c", "#4d7c0f", "#7c3aed"];
 
+const formatVolume = (value: number) =>
+  value >= 10000 ? Math.round(value).toLocaleString("en") : Math.round(value).toString();
+
 export function ProgressChart({ progress, range }: Props) {
   const allPoints = progress.flatMap((exercise) => exercise.points);
-  const maxWeight = Math.max(1, ...allPoints.map((point) => point.bestWeight));
+  const maxVolume = Math.max(1, ...allPoints.map((point) => point.bestVolume));
   const periods = [...new Set(allPoints.map((point) => point.periodStart))].sort();
   const width = 900;
   const height = 360;
@@ -26,8 +29,8 @@ export function ProgressChart({ progress, range }: Props) {
     return padding.left + (index / (periods.length - 1)) * chartWidth;
   };
 
-  const yForWeight = (weight: number) =>
-    padding.top + chartHeight - (weight / maxWeight) * chartHeight;
+  const yForVolume = (volume: number) =>
+    padding.top + chartHeight - (volume / maxVolume) * chartHeight;
 
   if (allPoints.length === 0) {
     return (
@@ -47,12 +50,13 @@ export function ProgressChart({ progress, range }: Props) {
       >
         <title id="chart-title">Weightlifting progress chart</title>
         <desc id="chart-desc">
-          Line graph showing best lifted weight for each exercise by {range} period.
+          Line graph showing peak training volume (weight times sets times reps) for each
+          exercise by {range} period.
         </desc>
 
         {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
           const y = padding.top + chartHeight - ratio * chartHeight;
-          const label = Math.round(maxWeight * ratio);
+          const label = formatVolume(maxVolume * ratio);
           return (
             <g key={ratio}>
               <line
@@ -97,7 +101,7 @@ export function ProgressChart({ progress, range }: Props) {
           const path = exercise.points
             .map((point, pointIndex) => {
               const command = pointIndex === 0 ? "M" : "L";
-              return `${command} ${xForPeriod(point.periodStart)} ${yForWeight(point.bestWeight)}`;
+              return `${command} ${xForPeriod(point.periodStart)} ${yForVolume(point.bestVolume)}`;
             })
             .join(" ");
           const color = colors[exerciseIndex % colors.length];
@@ -109,12 +113,14 @@ export function ProgressChart({ progress, range }: Props) {
                 <circle
                   key={`${exercise.exerciseId}-${point.periodStart}`}
                   cx={xForPeriod(point.periodStart)}
-                  cy={yForWeight(point.bestWeight)}
+                  cy={yForVolume(point.bestVolume)}
                   r="6"
                   fill={color}
                 >
                   <title>
-                    {exercise.exerciseName}: {point.bestWeight} in {point.label}
+                    {exercise.exerciseName}: volume {formatVolume(point.bestVolume)} (
+                    {point.volumeWeight} {point.volumeUnit} × {point.volumeSets} sets ×{" "}
+                    {point.volumeReps} reps) in {point.label}
                   </title>
                 </circle>
               ))}
@@ -122,6 +128,10 @@ export function ProgressChart({ progress, range }: Props) {
           );
         })}
       </svg>
+
+      <p className="chart-footnote" aria-hidden="true">
+        Y-axis: peak volume (weight × sets × reps) per period.
+      </p>
 
       <ul className="legend" aria-label="Chart legend">
         {progress.map((exercise, index) => (
@@ -134,4 +144,3 @@ export function ProgressChart({ progress, range }: Props) {
     </div>
   );
 }
-

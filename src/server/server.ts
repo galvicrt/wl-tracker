@@ -19,6 +19,8 @@ const entrySchema = z.object({
   liftedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   weight: z.coerce.number().positive().max(2000),
   unit: z.enum(["kg", "lb"]).default("kg"),
+  sets: z.coerce.number().int().min(1).max(200).default(1),
+  reps: z.coerce.number().int().min(1).max(500).default(1),
   notes: z.string().max(500).default(""),
 });
 
@@ -34,15 +36,24 @@ const liftedAtToIsoDate = (value: unknown): string => {
   return match ? match[1] : s.slice(0, 10);
 };
 
-const mapEntry = (row: Record<string, unknown>): LiftEntry => ({
-  id: String(row.id),
-  exerciseId: String(row.exercise_id),
-  exerciseName: String(row.exercise_name),
-  liftedAt: liftedAtToIsoDate(row.lifted_at),
-  weight: Number(row.weight),
-  unit: row.unit === "lb" ? "lb" : "kg",
-  notes: String(row.notes ?? ""),
-});
+const mapEntry = (row: Record<string, unknown>): LiftEntry => {
+  const setsRaw = row.sets == null ? 1 : Number(row.sets);
+  const repsRaw = row.reps == null ? 1 : Number(row.reps);
+  const sets = Number.isFinite(setsRaw) && setsRaw >= 1 ? Math.min(200, Math.floor(setsRaw)) : 1;
+  const reps = Number.isFinite(repsRaw) && repsRaw >= 1 ? Math.min(500, Math.floor(repsRaw)) : 1;
+
+  return {
+    id: String(row.id),
+    exerciseId: String(row.exercise_id),
+    exerciseName: String(row.exercise_name),
+    liftedAt: liftedAtToIsoDate(row.lifted_at),
+    weight: Number(row.weight),
+    unit: row.unit === "lb" ? "lb" : "kg",
+    sets,
+    reps,
+    notes: String(row.notes ?? ""),
+  };
+};
 
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
@@ -68,6 +79,8 @@ app.get("/api/entries", async (_request, response, next) => {
               lift_entries.lifted_at,
               lift_entries.weight,
               lift_entries.unit,
+              lift_entries.sets,
+              lift_entries.reps,
               lift_entries.notes
        FROM lift_entries
        JOIN exercises ON exercises.id = lift_entries.exercise_id
@@ -85,10 +98,18 @@ app.post("/api/entries", async (request, response, next) => {
   try {
     const entry = entrySchema.parse(request.body);
     const result = await pool.query(
-      `INSERT INTO lift_entries (exercise_id, lifted_at, weight, unit, notes)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO lift_entries (exercise_id, lifted_at, weight, unit, sets, reps, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id`,
-      [entry.exerciseId, entry.liftedAt, entry.weight, entry.unit, entry.notes],
+      [
+        entry.exerciseId,
+        entry.liftedAt,
+        entry.weight,
+        entry.unit,
+        entry.sets,
+        entry.reps,
+        entry.notes,
+      ],
     );
 
     response.status(201).json({ id: result.rows[0].id });
@@ -107,6 +128,8 @@ app.get("/api/progress", async (request, response, next) => {
               lift_entries.lifted_at,
               lift_entries.weight,
               lift_entries.unit,
+              lift_entries.sets,
+              lift_entries.reps,
               lift_entries.notes
        FROM lift_entries
        JOIN exercises ON exercises.id = lift_entries.exercise_id
