@@ -17,6 +17,8 @@ type FormState = {
   liftedAt: string;
   weight: string;
   unit: "kg" | "lb";
+  sets: string;
+  reps: string;
   notes: string;
 };
 
@@ -25,6 +27,8 @@ const initialFormState: FormState = {
   liftedAt: today,
   weight: "",
   unit: "kg",
+  sets: "1",
+  reps: "1",
   notes: "",
 };
 
@@ -81,6 +85,17 @@ export function App() {
       return;
     }
 
+    const sets = Number.parseInt(form.sets, 10);
+    const reps = Number.parseInt(form.reps, 10);
+    if (!Number.isFinite(sets) || sets < 1 || sets > 200) {
+      setError("Sets must be a whole number between 1 and 200.");
+      return;
+    }
+    if (!Number.isFinite(reps) || reps < 1 || reps > 500) {
+      setError("Reps must be a whole number between 1 and 500.");
+      return;
+    }
+
     setIsSaving(true);
     try {
       await api<{ id: string }>("/api/entries", {
@@ -90,6 +105,8 @@ export function App() {
           liftedAt: form.liftedAt,
           weight: form.weight,
           unit: form.unit,
+          sets,
+          reps,
           notes: form.notes.trim(),
         }),
       });
@@ -110,8 +127,9 @@ export function App() {
           <p className="eyebrow">Strength progress</p>
           <h1 id="page-title">Weightlifting tracker</h1>
           <p className="intro">
-            Log each lift, keep years of PostgreSQL-backed history, and switch the
-            progress graph between weekly, monthly, quarterly, and yearly views.
+            Log each lift with sets and reps, keep years of PostgreSQL-backed history, and
+            view peak training volume (weight × sets × reps) on the graph across weekly,
+            monthly, quarterly, and yearly ranges.
           </p>
         </div>
         <div className="summary-card" aria-label="Training summary">
@@ -176,6 +194,35 @@ export function App() {
             </div>
           </div>
 
+          <div className="split-fields">
+            <div>
+              <label htmlFor="sets">Sets</label>
+              <input
+                id="sets"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={200}
+                step={1}
+                value={form.sets}
+                onChange={(event) => setForm({ ...form, sets: event.target.value })}
+              />
+            </div>
+            <div>
+              <label htmlFor="reps">Reps per set</label>
+              <input
+                id="reps"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={500}
+                step={1}
+                value={form.reps}
+                onChange={(event) => setForm({ ...form, reps: event.target.value })}
+              />
+            </div>
+          </div>
+
           <label htmlFor="notes">Notes</label>
           <textarea
             id="notes"
@@ -206,7 +253,7 @@ export function App() {
           <div className="panel-header">
             <div>
               <p className="eyebrow">Progress graph</p>
-              <h2 id="progress-title">Best lifted weight by period</h2>
+              <h2 id="progress-title">Peak volume by period</h2>
             </div>
             <div className="range-control" aria-label="Progress range">
               {ranges.map((rangeOption) => (
@@ -237,6 +284,7 @@ export function App() {
                   <th scope="col">Date</th>
                   <th scope="col">Exercise</th>
                   <th scope="col">Weight</th>
+                  <th scope="col">Sets × reps</th>
                   <th scope="col">Notes</th>
                 </tr>
               </thead>
@@ -247,6 +295,9 @@ export function App() {
                     <td>{entry.exerciseName}</td>
                     <td>
                       {entry.weight} {entry.unit}
+                    </td>
+                    <td>
+                      {entry.sets} × {entry.reps}
                     </td>
                     <td>{entry.notes || "—"}</td>
                   </tr>

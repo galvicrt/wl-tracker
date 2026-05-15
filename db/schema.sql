@@ -10,10 +10,16 @@ CREATE TABLE IF NOT EXISTS lift_entries (
   lifted_at DATE NOT NULL,
   weight NUMERIC(8, 2) NOT NULL CHECK (weight > 0 AND weight <= 2000),
   unit TEXT NOT NULL DEFAULT 'kg' CHECK (unit IN ('kg', 'lb')),
+  sets INTEGER NOT NULL DEFAULT 1 CHECK (sets >= 1 AND sets <= 200),
+  reps INTEGER NOT NULL DEFAULT 1 CHECK (reps >= 1 AND reps <= 500),
   notes TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE lift_entries
+  ADD COLUMN IF NOT EXISTS sets INTEGER NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS reps INTEGER NOT NULL DEFAULT 1;
 
 CREATE INDEX IF NOT EXISTS lift_entries_exercise_date_idx
   ON lift_entries (exercise_id, lifted_at DESC);

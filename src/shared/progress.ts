@@ -7,13 +7,25 @@ export type LiftEntry = {
   liftedAt: string;
   weight: number;
   unit: "kg" | "lb";
+  sets: number;
+  reps: number;
   notes: string;
 };
+
+/** Training volume for one logged set (weight × sets × reps). */
+export const entryVolume = (entry: LiftEntry): number =>
+  entry.weight * entry.sets * entry.reps;
 
 export type ProgressPoint = {
   periodStart: string;
   label: string;
-  bestWeight: number;
+  /** Max volume in this period: weight × sets × reps. */
+  bestVolume: number;
+  /** Weight / sets / reps from an entry that achieved `bestVolume` (for tooltips). */
+  volumeWeight: number;
+  volumeSets: number;
+  volumeReps: number;
+  volumeUnit: "kg" | "lb";
   entryCount: number;
 };
 
@@ -91,6 +103,44 @@ export const getPeriodLabel = (periodStart: string, range: ProgressRange) => {
   return String(date.getUTCFullYear());
 };
 
+const isBetterVolume = (next: LiftEntry, nextVol: number, current: ProgressPoint): boolean => {
+  if (nextVol > current.bestVolume) {
+    return true;
+  }
+  if (nextVol < current.bestVolume) {
+    return false;
+  }
+  if (next.weight > current.volumeWeight) {
+    return true;
+  }
+  if (next.weight < current.volumeWeight) {
+    return false;
+  }
+  if (next.sets > current.volumeSets) {
+    return true;
+  }
+  if (next.sets < current.volumeSets) {
+    return false;
+  }
+  return next.reps > current.volumeReps;
+};
+
+const pointFromEntry = (
+  periodStart: string,
+  range: ProgressRange,
+  entry: LiftEntry,
+  volume: number,
+): ProgressPoint => ({
+  periodStart,
+  label: getPeriodLabel(periodStart, range),
+  bestVolume: volume,
+  volumeWeight: entry.weight,
+  volumeSets: entry.sets,
+  volumeReps: entry.reps,
+  volumeUnit: entry.unit,
+  entryCount: 1,
+});
+
 export const aggregateProgress = (
   entries: LiftEntry[],
   range: ProgressRange,
@@ -110,17 +160,19 @@ export const aggregateProgress = (
     const existingPoint = exerciseProgress.points.find(
       (point) => point.periodStart === periodStart,
     );
+    const volume = entryVolume(entry);
 
     if (existingPoint) {
-      existingPoint.bestWeight = Math.max(existingPoint.bestWeight, entry.weight);
+      if (isBetterVolume(entry, volume, existingPoint)) {
+        existingPoint.bestVolume = volume;
+        existingPoint.volumeWeight = entry.weight;
+        existingPoint.volumeSets = entry.sets;
+        existingPoint.volumeReps = entry.reps;
+        existingPoint.volumeUnit = entry.unit;
+      }
       existingPoint.entryCount += 1;
     } else {
-      exerciseProgress.points.push({
-        periodStart,
-        label: getPeriodLabel(periodStart, range),
-        bestWeight: entry.weight,
-        entryCount: 1,
-      });
+      exerciseProgress.points.push(pointFromEntry(periodStart, range, entry, volume));
     }
 
     byExercise.set(entry.exerciseId, exerciseProgress);
