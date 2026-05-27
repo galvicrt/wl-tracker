@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregateProgress, entryVolume, LiftEntry } from "../src/shared/progress";
+import { aggregateProgress, entryVolume, getPeriodStart, LiftEntry } from "../src/shared/progress";
 
 const base = {
   exerciseId: "hip-thrust",
@@ -51,8 +51,8 @@ describe("aggregateProgress", () => {
         entryCount: 2,
       },
       {
-        periodStart: "2026-02-02",
-        label: "Week of Feb 2",
+        periodStart: "2026-02-08",
+        label: "Week of Feb 8",
         bestVolume: 120,
         volumeWeight: 120,
         volumeSets: 1,
@@ -103,5 +103,81 @@ describe("aggregateProgress", () => {
   it("groups by quarter and year", () => {
     expect(aggregateProgress(entries, "quarterly")[0].points).toHaveLength(1);
     expect(aggregateProgress(entries, "yearly")[0].points).toHaveLength(1);
+  });
+});
+
+describe("getPeriodStart weekly — Sunday is a week start, not end of previous week", () => {
+  // Week calendar used by getWeekStart after the fix:
+  //   Mon 2026-01-05  Tue 2026-01-06  Wed 2026-01-07  Thu 2026-01-08
+  //   Fri 2026-01-09  Sat 2026-01-10  Sun 2026-01-11 ← own week start
+  //   Mon 2026-01-12  …
+
+  it("Sunday maps to itself (week starts on Sunday)", () => {
+    // 2026-01-04 is a Sunday; should not be pushed back to the previous Monday
+    expect(getPeriodStart("2026-01-04", "weekly")).toBe("2026-01-04");
+  });
+
+  it("Monday maps to itself", () => {
+    expect(getPeriodStart("2026-01-05", "weekly")).toBe("2026-01-05");
+  });
+
+  it("Tuesday maps back to Monday", () => {
+    expect(getPeriodStart("2026-01-06", "weekly")).toBe("2026-01-05");
+  });
+
+  it("Wednesday maps back to Monday", () => {
+    expect(getPeriodStart("2026-01-07", "weekly")).toBe("2026-01-05");
+  });
+
+  it("Saturday maps back to Monday", () => {
+    expect(getPeriodStart("2026-01-10", "weekly")).toBe("2026-01-05");
+  });
+
+  it("Sunday following a Mon-Sat span is a new week start, not in the prior week", () => {
+    // 2026-01-11 is the Sunday after the Mon 2026-01-05 week; it must start its own week
+    expect(getPeriodStart("2026-01-11", "weekly")).toBe("2026-01-11");
+    expect(getPeriodStart("2026-01-11", "weekly")).not.toBe("2026-01-05");
+  });
+
+  it("Saturday and the immediately following Sunday belong to different weeks", () => {
+    const saturday = getPeriodStart("2026-01-10", "weekly"); // Sat → Mon 2026-01-05
+    const sunday = getPeriodStart("2026-01-11", "weekly");   // Sun → 2026-01-11
+    expect(saturday).not.toBe(sunday);
+    expect(saturday).toBe("2026-01-05");
+    expect(sunday).toBe("2026-01-11");
+  });
+
+  it("month-boundary Sunday starts its own week", () => {
+    // 2026-03-01 is a Sunday
+    expect(getPeriodStart("2026-03-01", "weekly")).toBe("2026-03-01");
+  });
+
+  it("regression: Sunday entry is grouped in its own week, not the preceding Monday week", () => {
+    const sundayEntry: LiftEntry = {
+      id: "sun",
+      exerciseId: "squat",
+      exerciseName: "Squat",
+      unit: "kg",
+      notes: "",
+      liftedAt: "2026-01-11", // Sunday
+      weight: 100,
+      sets: 3,
+      reps: 5,
+    };
+    const mondayEntry: LiftEntry = {
+      id: "mon",
+      exerciseId: "squat",
+      exerciseName: "Squat",
+      unit: "kg",
+      notes: "",
+      liftedAt: "2026-01-05", // Monday of the prior week
+      weight: 90,
+      sets: 3,
+      reps: 5,
+    };
+    const [progress] = aggregateProgress([mondayEntry, sundayEntry], "weekly");
+    expect(progress.points).toHaveLength(2);
+    expect(progress.points[0].periodStart).toBe("2026-01-05");
+    expect(progress.points[1].periodStart).toBe("2026-01-11");
   });
 });
