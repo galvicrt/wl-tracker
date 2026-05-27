@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregateProgress, entryVolume, LiftEntry } from "../src/shared/progress";
+import { aggregateProgress, entryVolume, getPeriodStart, LiftEntry } from "../src/shared/progress";
 
 const base = {
   exerciseId: "hip-thrust",
@@ -51,8 +51,8 @@ describe("aggregateProgress", () => {
         entryCount: 2,
       },
       {
-        periodStart: "2026-02-02",
-        label: "Week of Feb 2",
+        periodStart: "2026-02-08",
+        label: "Week of Feb 8",
         bestVolume: 120,
         volumeWeight: 120,
         volumeSets: 1,
@@ -103,5 +103,67 @@ describe("aggregateProgress", () => {
   it("groups by quarter and year", () => {
     expect(aggregateProgress(entries, "quarterly")[0].points).toHaveLength(1);
     expect(aggregateProgress(entries, "yearly")[0].points).toHaveLength(1);
+  });
+});
+
+describe("getPeriodStart weekly – getWeekStart behaviour", () => {
+  // 2026-02-08 is a Sunday; under the new logic Sunday maps to itself (daysFromMonday=0).
+  it("treats Sunday as the start of its own week (regression: was rolling back to the previous Monday)", () => {
+    expect(getPeriodStart("2026-02-08", "weekly")).toBe("2026-02-08");
+  });
+
+  // Monday must stay on Monday (daysFromMonday=0 unchanged).
+  it("keeps Monday as the week start", () => {
+    expect(getPeriodStart("2026-02-09", "weekly")).toBe("2026-02-09");
+  });
+
+  // Tuesday – Saturday each roll back to the preceding Monday.
+  it("rolls Tuesday back to the preceding Monday", () => {
+    expect(getPeriodStart("2026-02-10", "weekly")).toBe("2026-02-09");
+  });
+
+  it("rolls Wednesday back to the preceding Monday", () => {
+    expect(getPeriodStart("2026-02-11", "weekly")).toBe("2026-02-09");
+  });
+
+  it("rolls Thursday back to the preceding Monday", () => {
+    expect(getPeriodStart("2026-02-12", "weekly")).toBe("2026-02-09");
+  });
+
+  it("rolls Friday back to the preceding Monday", () => {
+    expect(getPeriodStart("2026-02-13", "weekly")).toBe("2026-02-09");
+  });
+
+  it("rolls Saturday back to the preceding Monday", () => {
+    expect(getPeriodStart("2026-02-14", "weekly")).toBe("2026-02-09");
+  });
+
+  // A Sunday at a different date confirms the Sunday rule is not date-specific.
+  it("treats any Sunday as its own week start (2026-01-11)", () => {
+    expect(getPeriodStart("2026-01-11", "weekly")).toBe("2026-01-11");
+  });
+
+  // The day immediately after a Sunday should start a new Monday-anchored week.
+  it("does not merge Monday with the preceding Sunday week", () => {
+    // 2026-01-11 is Sunday → week "2026-01-11"
+    // 2026-01-12 is Monday → week "2026-01-12"
+    expect(getPeriodStart("2026-01-11", "weekly")).not.toBe(
+      getPeriodStart("2026-01-12", "weekly"),
+    );
+    expect(getPeriodStart("2026-01-12", "weekly")).toBe("2026-01-12");
+  });
+
+  // Boundary check: Sunday entries produce distinct period keys from adjacent Mon-Sat entries.
+  it("groups Mon-Sat entries together but keeps Sunday separate", () => {
+    const sundayEntry: LiftEntry = { id: "s", ...base, liftedAt: "2026-02-08", weight: 50, sets: 1, reps: 1 };
+    const mondayEntry: LiftEntry = { id: "m", ...base, liftedAt: "2026-02-09", weight: 60, sets: 1, reps: 1 };
+    const saturdayEntry: LiftEntry = { id: "sa", ...base, liftedAt: "2026-02-14", weight: 70, sets: 1, reps: 1 };
+
+    const [progress] = aggregateProgress([sundayEntry, mondayEntry, saturdayEntry], "weekly");
+
+    expect(progress.points).toHaveLength(2);
+    expect(progress.points[0].periodStart).toBe("2026-02-08"); // Sunday alone
+    expect(progress.points[1].periodStart).toBe("2026-02-09"); // Mon–Sat
+    expect(progress.points[1].entryCount).toBe(2);             // Monday + Saturday grouped together
   });
 });
