@@ -104,7 +104,7 @@ export const getPeriodLabel = (periodStart: string, range: ProgressRange) => {
 };
 
 const isBetterVolume = (next: LiftEntry, nextVol: number, current: ProgressPoint): boolean => {
-  if (nextVol > current.bestVolume) {
+  if (nextVol < current.bestVolume) {
     return true;
   }
   if (nextVol < current.bestVolume) {
