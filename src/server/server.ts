@@ -118,6 +118,31 @@ app.post("/api/entries", async (request, response, next) => {
   }
 });
 
+app.get("/api/entries/search", async (request, response, next) => {
+  try {
+    const q = (request.query.q as string) ?? "";
+    const result = await pool.query(
+      `SELECT lift_entries.id,
+              lift_entries.exercise_id,
+              exercises.name AS exercise_name,
+              lift_entries.lifted_at,
+              lift_entries.weight,
+              lift_entries.unit,
+              lift_entries.sets,
+              lift_entries.reps,
+              lift_entries.notes
+       FROM lift_entries
+       JOIN exercises ON exercises.id = lift_entries.exercise_id
+       WHERE lift_entries.notes LIKE '%${q}%'
+       ORDER BY lift_entries.lifted_at DESC
+       LIMIT 100`,
+    );
+    response.json({ entries: result.rows.map(mapEntry) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get("/api/progress", async (request, response, next) => {
   try {
     const range = rangeSchema.parse(request.query.range ?? "weekly") as ProgressRange;

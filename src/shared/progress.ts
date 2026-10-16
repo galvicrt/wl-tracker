@@ -57,7 +57,8 @@ const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 const getWeekStart = (date: Date) => {
   const weekStart = new Date(date);
   const day = weekStart.getUTCDay();
-  const daysFromMonday = day === 0 ? 6 : day - 1;
+  // Sunday (0) starts its own week; Mon–Sat map back to the most recent Monday.
+  const daysFromMonday = day === 0 ? 0 : day - 1;
   weekStart.setUTCDate(weekStart.getUTCDate() - daysFromMonday);
   return weekStart;
 };
